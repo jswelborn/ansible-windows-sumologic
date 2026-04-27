@@ -4,6 +4,6 @@ sumologic_install_dir: "C:\\SumoCollector"
 sumologic_config_dir: "{{ sumologic_install_dir }}\\config"
 sumologic_json_path: "{{ sumologic_install_dir }}\\sumo.json"
 sumologic_user_properties_path: "{{ sumologic_config_dir }}\\user.properties"
-sumologic_windows_installer: "SumoCollector_windows-x64.exe"
 sumologic_windows_download_url: "{{ sumologic_collector_url }}/win64"
+sumologic_windows_installer: "SumoCollector.exe"
 sumologic_local_mode: false

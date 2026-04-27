@@ -56,7 +56,7 @@
 
     - name: Download Sumo Logic installer
       ansible.windows.win_get_url:
-        url: "{{ sumologic_windows_download_url }}/{{ sumologic_windows_installer }}"
+        url: "{{ sumologic_windows_download_url }}"
         dest: "{{ os_package_local_path }}"
 
     - name: Install Sumo Logic Collector
