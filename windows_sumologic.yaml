@@ -6,7 +6,6 @@
     - vars/sumologic.yaml
 
   pre_tasks:
-
     - name: Validate Sumo Logic environment
       ansible.builtin.assert:
         that:
@@ -28,22 +27,21 @@
       no_log: true
 
   tasks:
-
     - name: Check if Sumo Collector is installed
       ansible.windows.win_shell: |
         $collector = Get-ItemProperty `
           HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*, `
           HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\* `
           -ErrorAction SilentlyContinue |
-          Where-Object { $_.DisplayName -match "Sumo Logic Collector" }
+          Where-Object { $_.DisplayName -match "Sumo" }
 
         if ($collector) { "installed" } else { "missing" }
-      register: sumo_check
+      register: sumologic_windows_check
       changed_when: false
 
     - name: Stop play if already installed
       ansible.builtin.meta: end_play
-      when: sumo_check.stdout | trim == "installed"
+      when: sumologic_windows_check.stdout | trim == "installed"
 
     - name: Ensure install directory exists
       ansible.windows.win_file:
@@ -60,10 +58,19 @@
         dest: "{{ os_package_local_path }}"
 
     - name: Install Sumo Logic Collector
-      ansible.windows.win_package:
-        path: "{{ os_package_local_path }}"
-        arguments: "/S"
-        state: present
+      ansible.windows.win_command: >
+        "{{ os_package_local_path }}"
+        -q
+        -dir "{{ sumologic_install_dir }}"
+      args:
+        creates: "{{ sumologic_install_dir }}\\collector.exe"
+      async: 1800
+      poll: 30
+
+    - name: Ensure config directory exists
+      ansible.windows.win_file:
+        path: "{{ sumologic_config_dir }}"
+        state: directory
 
     - name: Set collector name
       ansible.builtin.set_fact:
@@ -83,7 +90,6 @@
       no_log: true
 
   handlers:
-
     - name: restart sumo collector
       ansible.windows.win_service:
         name: sumo-collector
