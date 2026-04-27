@@ -86,7 +86,7 @@
         creates: "{{ sumologic_install_dir }}\\collector.exe"
       async: 1800
       poll: 30
-      no_log: true
+      no_log: false
 
     - name: Deploy user.properties
       ansible.windows.win_template:
