@@ -1,0 +1,91 @@
+---
+- name: Install Sumo Logic Collector on Windows
+  hosts: all
+  gather_facts: true
+  vars_files:
+    - vars/sumologic.yaml
+
+  pre_tasks:
+
+    - name: Validate Sumo Logic environment
+      ansible.builtin.assert:
+        that:
+          - sumologic_environment is defined
+          - sumologic_environment in ['staging', 'production']
+        fail_msg: "sumologic_environment must be staging or production."
+
+    - name: Set ephemeral behavior
+      ansible.builtin.set_fact:
+        sumologic_ephemeral: "{{ true if sumologic_environment == 'staging' else false }}"
+
+    - name: Validate Sumo Logic token
+      ansible.builtin.assert:
+        that:
+          - sumologic_token is defined
+          - sumologic_token | trim | length > 0
+        fail_msg: "sumologic_token must be provided."
+      when: not sumologic_local_mode
+      no_log: true
+
+  tasks:
+
+    - name: Check if Sumo Collector is installed
+      ansible.windows.win_shell: |
+        $collector = Get-ItemProperty `
+          HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*, `
+          HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\* `
+          -ErrorAction SilentlyContinue |
+          Where-Object { $_.DisplayName -match "Sumo Logic Collector" }
+
+        if ($collector) { "installed" } else { "missing" }
+      register: sumo_check
+      changed_when: false
+
+    - name: Stop play if already installed
+      ansible.builtin.meta: end_play
+      when: sumo_check.stdout | trim == "installed"
+
+    - name: Ensure install directory exists
+      ansible.windows.win_file:
+        path: "{{ sumologic_install_dir }}"
+        state: directory
+
+    - name: Set installer path
+      ansible.builtin.set_fact:
+        os_package_local_path: "{{ sumologic_install_dir }}\\{{ sumologic_windows_installer }}"
+
+    - name: Download Sumo Logic installer
+      ansible.windows.win_get_url:
+        url: "{{ sumologic_windows_download_url }}/{{ sumologic_windows_installer }}"
+        dest: "{{ os_package_local_path }}"
+
+    - name: Install Sumo Logic Collector
+      ansible.windows.win_package:
+        path: "{{ os_package_local_path }}"
+        arguments: "/S"
+        state: present
+
+    - name: Set collector name
+      ansible.builtin.set_fact:
+        sumologic_collector_name: "{{ ansible_hostname }}"
+
+    - name: Copy Sumo sources config
+      ansible.windows.win_copy:
+        src: windows_sumo.json
+        dest: "{{ sumologic_json_path }}"
+      notify: restart sumo collector
+
+    - name: Deploy user.properties
+      ansible.windows.win_template:
+        src: user.properties.j2
+        dest: "{{ sumologic_user_properties_path }}"
+      notify: restart sumo collector
+      no_log: true
+
+  handlers:
+
+    - name: restart sumo collector
+      ansible.windows.win_service:
+        name: sumo-collector
+        state: restarted
+      when: not sumologic_local_mode
