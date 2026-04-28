@@ -104,9 +104,6 @@
 
   handlers:
     - name: restart sumo collector
-      ansible.windows.win_command:
-        argv:
-          - "{{ sumologic_install_dir }}\\collector"
-          - "restart"
-        chdir: "{{ sumologic_install_dir }}"
+      ansible.windows.win_shell: |
+        Restart-Service -Name sumo-collector -Force
       when: not sumologic_local_mode
