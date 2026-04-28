@@ -95,15 +95,46 @@
       poll: 30
       no_log: true
 
+    - name: Wait for Sumo collector service to exist
+      ansible.windows.win_service_info:
+        name: sumo-collector
+      register: sumologic_service_info
+      retries: 18
+      delay: 10
+      until:
+        - sumologic_service_info.exists
+
     - name: Deploy user.properties
       ansible.windows.win_template:
         src: user.properties.j2
         dest: "{{ sumologic_user_properties_path }}"
-      notify: restart sumo collector
       no_log: true
 
-  handlers:
-    - name: restart sumo collector
-      ansible.windows.win_shell: |
-        Restart-Service -Name sumo-collector -Force
+    - name: Ensure Sumo collector service starts automatically
+      ansible.windows.win_service:
+        name: sumo-collector
+        start_mode: auto
+
+    - name: Allow Sumo collector service registration to settle
+      ansible.builtin.pause:
+        seconds: 30
+
+    - name: Restart Sumo collector service
+      ansible.windows.win_service:
+        name: sumo-collector
+        state: restarted
+      register: sumologic_restart_result
+      retries: 6
+      delay: 15
+      until: sumologic_restart_result is succeeded
+      when: not sumologic_local_mode
+
+    - name: Ensure Sumo collector service is running
+      ansible.windows.win_service:
+        name: sumo-collector
+        state: started
+      register: sumologic_service_start_result
+      retries: 6
+      delay: 15
+      until: sumologic_service_start_result is succeeded
       when: not sumologic_local_mode
