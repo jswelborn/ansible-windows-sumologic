@@ -17,12 +17,21 @@
       ansible.builtin.set_fact:
         sumologic_ephemeral: "{{ true if sumologic_environment == 'staging' else false }}"
 
-    - name: Validate Sumo Logic token
+    - name: Validate Sumo Logic access ID
       ansible.builtin.assert:
         that:
-          - sumologic_token is defined
-          - sumologic_token | trim | length > 0
-        fail_msg: "sumologic_token must be provided."
+          - sumologic_accessid is defined
+          - sumologic_accessid | trim | length > 0
+        fail_msg: "sumologic_accessid must be provided by AAP credential."
+      when: not sumologic_local_mode
+      no_log: true
+
+    - name: Validate Sumo Logic access key
+      ansible.builtin.assert:
+        that:
+          - sumologic_accesskey is defined
+          - sumologic_accesskey | trim | length > 0
+        fail_msg: "sumologic_accesskey must be provided by AAP credential."
       when: not sumologic_local_mode
       no_log: true
 
@@ -75,13 +84,12 @@
       ansible.windows.win_command:
         argv:
           - "{{ os_package_local_path }}"
-          - "-console"
           - "-q"
           - "-dir"
           - "{{ sumologic_install_dir }}"
-          - "-Vsumo.token_and_url={{ sumologic_token }}"
-          - "-Vsources={{ sumologic_json_path }}"
-          - "-Vcollector.name={{ sumologic_collector_name }}"
+          - "-Vsumo.accessid={{ sumologic_accessid }}"
+          - "-Vsumo.accesskey={{ sumologic_accesskey }}"
+          - "-VskipRegistration=true"
         creates: "{{ sumologic_install_dir }}\\collector.exe"
       async: 1800
       poll: 30
