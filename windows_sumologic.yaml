@@ -6,7 +6,6 @@
     - vars/sumologic.yaml
 
   pre_tasks:
-
     - name: Validate Sumo Logic environment
       ansible.builtin.assert:
         that:
@@ -28,14 +27,13 @@
       no_log: true
 
   tasks:
-
     - name: Check if Sumo Collector is installed
       ansible.windows.win_shell: |
         $collector = Get-ItemProperty `
           HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*, `
           HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\* `
           -ErrorAction SilentlyContinue |
-          Where-Object { $_.DisplayName -match "Sumo" }
+          Where-Object { $_.DisplayName -match "Sumo Logic Collector" }
 
         if ($collector) { "installed" } else { "missing" }
       register: sumologic_windows_check
@@ -64,7 +62,6 @@
         url: "{{ sumologic_windows_download_url }}"
         dest: "{{ os_package_local_path }}"
 
-    # 🔥 MUST happen before install
     - name: Set collector name
       ansible.builtin.set_fact:
         sumologic_collector_name: "{{ ansible_hostname }}"
@@ -75,18 +72,20 @@
         dest: "{{ sumologic_json_path }}"
 
     - name: Install Sumo Logic Collector
-      ansible.windows.win_command: >
-        cmd.exe /C ""{{ os_package_local_path }}"
-        -console
-        -q
-        "-Vsumo.token_and_url={{ sumologic_token }}"
-        "-Vsources={{ sumologic_json_path }}"
-        "-Vcollector.name={{ sumologic_collector_name }}""
-      args:
+      ansible.windows.win_command:
+        argv:
+          - "{{ os_package_local_path }}"
+          - "-console"
+          - "-q"
+          - "-dir"
+          - "{{ sumologic_install_dir }}"
+          - "-Vsumo.token_and_url={{ sumologic_token }}"
+          - "-Vsources={{ sumologic_json_path }}"
+          - "-Vcollector.name={{ sumologic_collector_name }}"
         creates: "{{ sumologic_install_dir }}\\collector.exe"
       async: 1800
       poll: 30
-      no_log: false
+      no_log: true
 
     - name: Deploy user.properties
       ansible.windows.win_template:
@@ -96,7 +95,6 @@
       no_log: true
 
   handlers:
-
     - name: restart sumo collector
       ansible.windows.win_service:
         name: sumo-collector
