@@ -1,0 +1,25 @@
+---
+- name: Check Windows Sumo Logic Collector service
+  hosts: all
+  gather_facts: false
+
+  vars:
+    service_name: sumo-collector
+
+  tasks:
+    - name: Gather Sumo Logic Collector service info
+      ansible.windows.win_service_info:
+        name: "{{ service_name }}"
+      register: service_info
+
+    - name: Fail if Sumo Logic Collector service is missing
+      ansible.builtin.fail:
+        msg: "Sumo Logic Collector service is missing"
+      when: not service_info.exists
+
+    - name: Fail if Sumo Logic Collector service is not running
+      ansible.builtin.fail:
+        msg: "Sumo Logic Collector service exists but is not running"
+      when:
+        - service_info.exists
+        - service_info.services[0].state != "started"
