@@ -1,5 +1,5 @@
 ---
-- name: Check Windows Sumo Logic Collector service
+- name: Check and remediate Windows SumoLogic Collector service
   hosts: all
   gather_facts: false
 
@@ -7,19 +7,43 @@
     service_name: sumo-collector
 
   tasks:
-    - name: Gather Sumo Logic Collector service info
+    - name: Gather SumoLogic Collector service info
       ansible.windows.win_service_info:
         name: "{{ service_name }}"
-      register: service_info
+      register: sumologic_service_info
+      ignore_unreachable: true
 
-    - name: Fail if Sumo Logic Collector service is missing
-      ansible.builtin.fail:
-        msg: "Sumo Logic Collector service is missing"
-      when: not service_info.exists
+    - name: End compliance check for unreachable host
+      ansible.builtin.meta: end_host
+      when: sumologic_service_info is ansible.builtin.unreachable
 
-    - name: Fail if Sumo Logic Collector service is not running
+    - name: Fail if SumoLogic Collector service is missing
       ansible.builtin.fail:
-        msg: "Sumo Logic Collector service exists but is not running"
+        msg: "SumoLogic Collector service is missing"
+      when: not sumologic_service_info.exists
+
+    - name: Start SumoLogic Collector service when it is stopped
+      ansible.windows.win_service:
+        name: "{{ service_name }}"
+        state: started
+        start_mode: auto
       when:
-        - service_info.exists
-        - service_info.services[0].state != "started"
+        - sumologic_service_info.exists
+        - sumologic_service_info.services[0].state != "started"
+
+    - name: Refresh SumoLogic Collector service info after remediation
+      ansible.windows.win_service_info:
+        name: "{{ service_name }}"
+      register: sumologic_remediation_info
+      ignore_unreachable: true
+
+    - name: End compliance check if host became unreachable
+      ansible.builtin.meta: end_host
+      when: sumologic_remediation_info is ansible.builtin.unreachable
+
+    - name: Fail if SumoLogic Collector service is still not running
+      ansible.builtin.fail:
+        msg: "SumoLogic Collector service exists but could not be started"
+      when:
+        - sumologic_remediation_info.exists
+        - sumologic_remediation_info.services[0].state != "started"
