@@ -12,15 +12,19 @@
         name: "{{ service_name }}"
       register: sumologic_service_info
       ignore_unreachable: true
+      failed_when: false
 
-    - name: End compliance check for unreachable host
+    - name: End compliance check when service information could not be gathered
       ansible.builtin.meta: end_host
-      when: sumologic_service_info is ansible.builtin.unreachable
+      when:
+        - sumologic_service_info.unreachable | default(false) or
+          sumologic_service_info.failed | default(false)
 
     - name: Fail if SumoLogic Collector service is missing
       ansible.builtin.fail:
         msg: "SumoLogic Collector service is missing"
-      when: not sumologic_service_info.exists
+      when:
+        - not sumologic_service_info.exists | default(false)
 
     - name: Start SumoLogic Collector service when it is stopped
       ansible.windows.win_service:
@@ -36,14 +40,17 @@
         name: "{{ service_name }}"
       register: sumologic_remediation_info
       ignore_unreachable: true
+      failed_when: false
 
-    - name: End compliance check if host became unreachable
+    - name: End compliance check when service information could not be refreshed
       ansible.builtin.meta: end_host
-      when: sumologic_remediation_info is ansible.builtin.unreachable
+      when:
+        - sumologic_remediation_info.unreachable | default(false) or
+          sumologic_remediation_info.failed | default(false)
 
     - name: Fail if SumoLogic Collector service is still not running
       ansible.builtin.fail:
         msg: "SumoLogic Collector service exists but could not be started"
       when:
-        - sumologic_remediation_info.exists
+        - sumologic_remediation_info.exists | default(false)
         - sumologic_remediation_info.services[0].state != "started"
